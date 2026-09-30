@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://diqdynhqjcqd8"]
+
+[ext_resource type="Script" uid="uid://cvqljf161db0o" path="res://scripts/main.gd" id="1_v6u7x"]
+
+[node name="Main" type="Node2D" unique_id=1383861449]
+script = ExtResource("1_v6u7x")
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=286426885]
+
+[node name="MoneyLabel" type="Label" parent="UI" unique_id=997411769]
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 112.0
+offset_bottom = 63.0
+theme_override_font_sizes/font_size = 28
+text = "$1,000"
+
+[node name="BuildCafeButton" type="Button" parent="UI" unique_id=571400558]
+offset_left = 470.0
+offset_top = 560.0
+offset_right = 690.0
+offset_bottom = 620.0
+text = "Build Cafe - $300"
+
+[node name="UpgradeCafeButton" type="Button" parent="UI" unique_id=1517238353]
+offset_left = 700.0
+offset_top = 560.0
+offset_right = 920.0
+offset_bottom = 620.0
+text = "Upgrade Cafe - $200"
+
+[node name="PlotGrid" type="GridContainer" parent="." unique_id=549295168]
+offset_left = 330.0
+offset_top = 220.0
+offset_right = 490.0
+offset_bottom = 340.0
+columns = 3
+
+[node name="Plot1" type="Button" parent="PlotGrid" unique_id=351108747]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="Plot2" type="Button" parent="PlotGrid" unique_id=943124928]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="Plot3" type="Button" parent="PlotGrid" unique_id=1234636915]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="Plot4" type="Button" parent="PlotGrid" unique_id=1635428524]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="Plot5" type="Button" parent="PlotGrid" unique_id=1753002508]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="Plot6" type="Button" parent="PlotGrid" unique_id=1513791244]
+custom_minimum_size = Vector2(160, 120)
+layout_mode = 2
+text = "EMPTY"
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=693399011]
+layer = -1
+
+[node name="Background" type="ColorRect" parent="BackgroundLayer" unique_id=1017731105]
+custom_minimum_size = Vector2(1152, 648)
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+color = Color(0.7683069, 0.7683071, 0.76830703, 1)
+
+[connection signal="pressed" from="UI/BuildCafeButton" to="." method="_on_build_cafe_button_pressed"]
+[connection signal="pressed" from="UI/UpgradeCafeButton" to="." method="_on_upgrade_cafe_button_pressed"]
