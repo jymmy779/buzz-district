@@ -6,6 +6,27 @@ const OFFICE_WORKER_SCENE = preload(
 )
 
 
+enum DemandState {
+	LOW,
+	NORMAL,
+	HIGH
+}
+
+
+const DEMAND_SPAWN_INTERVALS := {
+	DemandState.LOW: Vector2(2.5, 5.0),
+	DemandState.NORMAL: Vector2(1.2, 3.0),
+	DemandState.HIGH: Vector2(0.5, 1.5)
+}
+
+
+const DEMAND_NAMES := {
+	DemandState.LOW: "LOW",
+	DemandState.NORMAL: "NORMAL",
+	DemandState.HIGH: "HIGH"
+}
+
+
 # =========================================================
 # PROTOTYPE BALANCE DATA
 # =========================================================
@@ -13,16 +34,19 @@ const OFFICE_WORKER_SCENE = preload(
 const CAFE_LEVEL_STATS := {
 	1: {
 		"capacity": 1,
+		"queue_capacity": 3,
 		"service_time": 4.0,
 		"income": 10
 	},
 	2: {
 		"capacity": 2,
+		"queue_capacity": 4,
 		"service_time": 3.2,
 		"income": 12
 	},
 	3: {
 		"capacity": 3,
+		"queue_capacity": 5,
 		"service_time": 2.7,
 		"income": 15
 	}
@@ -31,10 +55,6 @@ const CAFE_LEVEL_STATS := {
 
 # Khách spawn nhanh hơn để test demand/capacity.
 # Sau này sẽ thay bằng Demand System thật.
-const CUSTOMER_SPAWN_MIN := 0.2
-const CUSTOMER_SPAWN_MAX := 0.5
-
-
 @onready var plot_grid: GridContainer = $PlotGrid
 @onready var money_label: Label = $UI/MoneyLabel
 @onready var build_cafe_button: Button = $UI/BuildCafeButton
@@ -46,6 +66,7 @@ var selected_plot: Button = null
 
 var customer_spawn_timer := 0.0
 var next_customer_spawn := 1.0
+var demand_state: int = DemandState.NORMAL
 
 
 # =========================================================
@@ -74,6 +95,11 @@ func _ready() -> void:
 
 			child.set_meta(
 				"customers",
+				[]
+			)
+
+			child.set_meta(
+				"waiting_customers",
 				[]
 			)
 
@@ -111,10 +137,11 @@ func _process(delta: float) -> void:
 
 func schedule_next_customer() -> void:
 	customer_spawn_timer = 0.0
+	var spawn_interval := get_spawn_interval_for_demand()
 
 	next_customer_spawn = randf_range(
-		CUSTOMER_SPAWN_MIN,
-		CUSTOMER_SPAWN_MAX
+		spawn_interval.x,
+		spawn_interval.y
 	)
 
 	print(
@@ -122,6 +149,40 @@ func schedule_next_customer() -> void:
 		snapped(next_customer_spawn, 0.1),
 		"s"
 	)
+
+
+func get_spawn_interval_for_demand() -> Vector2:
+	return DEMAND_SPAWN_INTERVALS.get(
+		demand_state,
+		DEMAND_SPAWN_INTERVALS[DemandState.NORMAL]
+	)
+
+
+func get_demand_name(state: int) -> String:
+	return str(DEMAND_NAMES.get(state, "NORMAL"))
+
+
+func set_demand_state(new_state: int) -> void:
+	if not DEMAND_SPAWN_INTERVALS.has(new_state):
+		push_warning("Ignored invalid demand state: " + str(new_state))
+		return
+
+	if demand_state == new_state:
+		return
+
+	var previous_state := demand_state
+	demand_state = new_state
+
+	print(
+		"Demand changed: ",
+		get_demand_name(previous_state),
+		" -> ",
+		get_demand_name(demand_state)
+	)
+
+	# Apply the new rate to the very next spawn without touching existing NPCs.
+	if is_node_ready():
+		schedule_next_customer()
 
 
 # =========================================================
@@ -222,6 +283,11 @@ func build_cafe() -> void:
 
 	selected_plot.set_meta(
 		"customers",
+		[]
+	)
+
+	selected_plot.set_meta(
+		"waiting_customers",
 		[]
 	)
 
@@ -473,6 +539,14 @@ func get_cafe_service_time(
 	)
 
 
+func get_cafe_queue_capacity(
+	cafe_plot: Button
+) -> int:
+	var stats := get_cafe_stats(cafe_plot)
+
+	return int(stats["queue_capacity"])
+
+
 func get_cafe_income(
 	cafe_plot: Button
 ) -> int:
@@ -582,6 +656,21 @@ func get_service_slot_position(
 	return center
 
 
+func get_queue_slot_position(
+	cafe_plot: Button,
+	queue_index: int
+) -> Vector2:
+	var center := (
+		cafe_plot.global_position
+		+ cafe_plot.size / 2.0
+	)
+
+	return center + Vector2(
+		0,
+		55 + queue_index * 35
+	)
+
+
 # =========================================================
 # CUSTOMER SPAWNING
 # =========================================================
@@ -599,15 +688,22 @@ func try_spawn_customer() -> void:
 		if plot.get_meta("state") != "active":
 			continue
 
-		cleanup_customer_list(
+		cleanup_customer_lists(
 			plot
 		)
 
 		var free_slot := get_free_service_slot_index(
 			plot
 		)
+		var waiting_customers: Array = plot.get_meta(
+			"waiting_customers",
+			[]
+		)
 
-		if free_slot != -1:
+		if (
+			free_slot != -1
+			or waiting_customers.size() < get_cafe_queue_capacity(plot)
+		):
 			available_cafes.append(
 				plot
 			)
@@ -771,7 +867,7 @@ func show_income_popup(
 # CUSTOMER TRACKING
 # =========================================================
 
-func cleanup_customer_list(
+func cleanup_customer_lists(
 	cafe_plot: Button
 ) -> void:
 	if not is_instance_valid(cafe_plot):
@@ -805,6 +901,29 @@ func cleanup_customer_list(
 		valid_customers
 	)
 
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+	var valid_waiting_customers: Array = []
+
+	for customer in waiting_customers:
+		if not is_instance_valid(customer):
+			continue
+
+		if bool(customer.get_meta("leaving", false)):
+			continue
+
+		if valid_customers.has(customer):
+			continue
+
+		valid_waiting_customers.append(customer)
+
+	cafe_plot.set_meta(
+		"waiting_customers",
+		valid_waiting_customers
+	)
+
 
 func register_customer(
 	cafe_plot: Button,
@@ -815,6 +934,13 @@ func register_customer(
 
 	if not is_instance_valid(npc):
 		return
+
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+	waiting_customers.erase(npc)
+	cafe_plot.set_meta("waiting_customers", waiting_customers)
 
 	var customers: Array = cafe_plot.get_meta(
 		"customers",
@@ -830,6 +956,28 @@ func register_customer(
 		"customers",
 		customers
 	)
+
+
+func register_waiting_customer(
+	cafe_plot: Button,
+	npc: Node2D
+) -> void:
+	if not is_instance_valid(cafe_plot) or not is_instance_valid(npc):
+		return
+
+	var customers: Array = cafe_plot.get_meta("customers", [])
+	customers.erase(npc)
+	cafe_plot.set_meta("customers", customers)
+
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+
+	if not waiting_customers.has(npc):
+		waiting_customers.append(npc)
+
+	cafe_plot.set_meta("waiting_customers", waiting_customers)
 
 
 func unregister_customer(
@@ -853,9 +1001,56 @@ func unregister_customer(
 		customers
 	)
 
-	cleanup_customer_list(
+	cleanup_customer_lists(
 		cafe_plot
 	)
+
+
+func unregister_waiting_customer(
+	cafe_plot: Button,
+	npc: Node2D
+) -> void:
+	if not is_instance_valid(cafe_plot):
+		return
+
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+	waiting_customers.erase(npc)
+	cafe_plot.set_meta("waiting_customers", waiting_customers)
+
+
+func refresh_queue_positions(
+	cafe_plot: Button
+) -> void:
+	if not is_instance_valid(cafe_plot):
+		return
+
+	cleanup_customer_lists(cafe_plot)
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+
+	for index in range(waiting_customers.size()):
+		var npc = waiting_customers[index]
+
+		if not is_instance_valid(npc):
+			continue
+
+		var previous_index := int(npc.get_meta("queue_index", -1))
+		npc.set_meta("queue_index", index)
+
+		if previous_index == -1:
+			npc.set_meta("customer_state", "going_to_queue")
+		elif npc.get_meta("customer_state", "") != "going_to_queue":
+			npc.set_meta("customer_state", "waiting")
+
+		npc.walk_to(
+			get_queue_slot_position(cafe_plot, index),
+			2.0 if previous_index == -1 else 0.35
+		)
 
 
 func evict_customers(
@@ -868,15 +1063,121 @@ func evict_customers(
 		"customers",
 		[]
 	)
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+	var all_customers := customers.duplicate()
 
-	for npc in customers.duplicate():
+	for npc in waiting_customers:
+		if not all_customers.has(npc):
+			all_customers.append(npc)
+
+	for npc in all_customers:
 		if not is_instance_valid(npc):
 			continue
 
-		send_customer_out(
-			npc,
-			cafe_plot
+		reassign_customer_from_upgrading_cafe(npc, cafe_plot)
+
+	cafe_plot.set_meta("customers", [])
+	cafe_plot.set_meta("waiting_customers", [])
+
+
+func reassign_customer_from_upgrading_cafe(
+	npc: Node2D,
+	old_cafe: Button
+) -> void:
+	if not is_instance_valid(npc) or not is_instance_valid(old_cafe):
+		return
+
+	# Invalidate the old movement/service coroutine before assigning a new cafe.
+	var assignment_id := int(npc.get_meta("assignment_id", 0)) + 1
+	npc.set_meta("assignment_id", assignment_id)
+	npc.set_meta("customer_state", "rerouting")
+	npc.set_meta("current_cafe", null)
+	npc.cancel_movement()
+	unregister_customer(old_cafe, npc)
+	unregister_waiting_customer(old_cafe, npc)
+	npc.set_meta("service_slot_index", -1)
+	npc.set_meta("queue_index", -1)
+	npc.set_meta("leaving", false)
+
+	var active_cafes: Array[Button] = []
+
+	for plot in plot_grid.get_children():
+		if not (plot is Button):
+			continue
+
+		if plot == old_cafe:
+			continue
+
+		if plot.get_meta("building_type") != "cafe":
+			continue
+
+		if plot.get_meta("state") != "active":
+			continue
+
+		cleanup_customer_lists(plot)
+		active_cafes.append(plot)
+
+	# First pass: prefer an immediately available service slot.
+	for cafe in active_cafes:
+		var slot_index := get_free_service_slot_index(cafe)
+
+		if slot_index == -1:
+			continue
+
+		npc.set_meta("service_slot_index", slot_index)
+		npc.set_meta("customer_state", "going_to_service")
+		npc.set_meta("current_cafe", cafe)
+		register_customer(cafe, npc)
+		print(
+			npc.name,
+			" rerouted from ",
+			old_cafe.name,
+			" to ",
+			cafe.name,
+			" service slot ",
+			slot_index
 		)
+		start_customer_service(npc, cafe, slot_index, assignment_id)
+		return
+
+	# Second pass: use the first queue that still has capacity.
+	for cafe in active_cafes:
+		var waiting_customers: Array = cafe.get_meta(
+			"waiting_customers",
+			[]
+		)
+
+		if waiting_customers.size() >= get_cafe_queue_capacity(cafe):
+			continue
+
+		npc.set_meta("customer_state", "waiting")
+		npc.set_meta("current_cafe", cafe)
+		register_waiting_customer(cafe, npc)
+		refresh_queue_positions(cafe)
+		start_customer_patience(npc, cafe, assignment_id)
+		print(
+			npc.name,
+			" rerouted from ",
+			old_cafe.name,
+			" to ",
+			cafe.name,
+			" queue slot ",
+			int(npc.get_meta("queue_index", -1))
+		)
+		return
+
+	# No other cafe can accept this customer.
+	print(
+		npc.name,
+		" could not reroute from ",
+		old_cafe.name,
+		": all other cafes are full"
+	)
+	npc.set_meta("current_cafe", old_cafe)
+	send_customer_out(npc, old_cafe)
 
 
 # =========================================================
@@ -892,80 +1193,159 @@ func spawn_customer_for_cafe(
 	if cafe_plot.get_meta("state") != "active":
 		return
 
-	# -----------------------------------------------------
-	# FIND SERVICE SLOT
-	# -----------------------------------------------------
-
-	var slot_index := get_free_service_slot_index(
-		cafe_plot
-	)
-
-	if slot_index == -1:
-		return
-
-	var service_position := get_service_slot_position(
-		cafe_plot,
-		slot_index
-	)
-
-	# -----------------------------------------------------
-	# CREATE NPC
-	# -----------------------------------------------------
-
-	var npc = OFFICE_WORKER_SCENE.instantiate()
-
-	add_child(
-		npc
-	)
-
-	npc.set_meta(
-		"leaving",
-		false
-	)
-
-	npc.set_meta(
-		"service_slot_index",
-		slot_index
-	)
-
-	register_customer(
-		cafe_plot,
-		npc
-	)
-
-	var current_customers: Array = cafe_plot.get_meta(
-		"customers",
+	cleanup_customer_lists(cafe_plot)
+	var slot_index := get_free_service_slot_index(cafe_plot)
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
 		[]
 	)
 
-	print(
-		"NPC assigned to ",
-		cafe_plot.name,
-		" slot ",
-		slot_index,
-		" | customers: ",
-		current_customers.size(),
-		"/",
-		get_cafe_capacity(cafe_plot)
-	)
+	if (
+		slot_index == -1
+		and waiting_customers.size() >= get_cafe_queue_capacity(cafe_plot)
+	):
+		return
 
-	# -----------------------------------------------------
-	# SPAWN POSITION
-	# -----------------------------------------------------
+	var npc = OFFICE_WORKER_SCENE.instantiate()
+	add_child(npc)
+	npc.global_position = Vector2(50, 350)
+	npc.set_meta("leaving", false)
+	npc.set_meta("service_slot_index", -1)
+	npc.set_meta("queue_index", -1)
+	npc.set_meta("customer_state", "waiting")
+	npc.set_meta("assignment_id", 1)
+	npc.set_meta("current_cafe", cafe_plot)
+	var patience_max := randf_range(8.0, 15.0)
+	npc.set_meta("patience_max", patience_max)
+	npc.set_meta("patience_remaining", patience_max)
+	npc.set_meta("patience_run_id", 0)
 
-	npc.global_position = Vector2(
-		50,
-		350
-	)
+	if slot_index != -1:
+		# Reserve before any await so nearby spawns cannot claim the same slot.
+		npc.set_meta("service_slot_index", slot_index)
+		npc.set_meta("customer_state", "going_to_service")
+		register_customer(cafe_plot, npc)
+		start_customer_service(npc, cafe_plot, slot_index, 1)
+		return
 
-	# =====================================================
-	# WALK TO SERVICE SLOT
-	# =====================================================
+	register_waiting_customer(cafe_plot, npc)
+	refresh_queue_positions(cafe_plot)
+	start_customer_patience(npc, cafe_plot, 1)
 
-	var walk_in: Tween = npc.walk_to(
-		service_position,
-		2.0
-	)
+
+func is_customer_assignment_current(
+	npc: Node2D,
+	cafe_plot: Button,
+	assignment_id: int
+) -> bool:
+	if not is_instance_valid(npc) or not is_instance_valid(cafe_plot):
+		return false
+
+	if int(npc.get_meta("assignment_id", 0)) != assignment_id:
+		return false
+
+	if npc.get_meta("current_cafe", null) != cafe_plot:
+		return false
+
+	var customer_state := str(npc.get_meta("customer_state", ""))
+
+	return customer_state != "rerouting" and customer_state != "leaving"
+
+
+func start_customer_patience(
+	npc: Node2D,
+	cafe_plot: Button,
+	assignment_id: int
+) -> void:
+	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		return
+
+	var patience_run_id := int(npc.get_meta("patience_run_id", 0)) + 1
+	npc.set_meta("patience_run_id", patience_run_id)
+	var waiting_announced := false
+
+	while true:
+		await get_tree().process_frame
+
+		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+			return
+
+		if int(npc.get_meta("patience_run_id", 0)) != patience_run_id:
+			return
+
+		var waiting_customers: Array = cafe_plot.get_meta(
+			"waiting_customers",
+			[]
+		)
+
+		if not waiting_customers.has(npc):
+			return
+
+		var customer_state := str(npc.get_meta("customer_state", ""))
+
+		if customer_state == "going_to_queue":
+			var queue_index := int(npc.get_meta("queue_index", -1))
+
+			if queue_index < 0:
+				return
+
+			var queue_position := get_queue_slot_position(
+				cafe_plot,
+				queue_index
+			)
+
+			if npc.global_position.distance_to(queue_position) <= 1.0:
+				npc.set_meta("customer_state", "waiting")
+				customer_state = "waiting"
+
+		if customer_state != "waiting":
+			continue
+
+		if not waiting_announced:
+			waiting_announced = true
+			print(
+				npc.name,
+				" waiting | patience: ",
+				snapped(
+					float(npc.get_meta("patience_remaining", 0.0)),
+					0.1
+				),
+				"s"
+			)
+
+		var patience_remaining := float(
+			npc.get_meta("patience_remaining", 0.0)
+		)
+		patience_remaining -= get_process_delta_time()
+		npc.set_meta(
+			"patience_remaining",
+			max(patience_remaining, 0.0)
+		)
+
+		if patience_remaining <= 0.0:
+			print(npc.name, " left queue: patience expired")
+			send_customer_out(npc, cafe_plot)
+			return
+
+
+func start_customer_service(
+	npc: Node2D,
+	cafe_plot: Button,
+	slot_index: int,
+	assignment_id: int
+) -> void:
+	if not is_instance_valid(npc) or not is_instance_valid(cafe_plot):
+		return
+
+	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		return
+
+	if cafe_plot.get_meta("state") != "active":
+		send_customer_out(npc, cafe_plot)
+		return
+
+	var service_position := get_service_slot_position(cafe_plot, slot_index)
+	var walk_in: Tween = npc.walk_to(service_position, 2.0)
 
 	while (
 		is_instance_valid(npc)
@@ -975,6 +1355,9 @@ func spawn_customer_for_cafe(
 		await get_tree().process_frame
 
 		if not is_instance_valid(npc):
+			return
+
+		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
 			return
 
 		if bool(
@@ -996,6 +1379,9 @@ func spawn_customer_for_cafe(
 	if not is_instance_valid(npc):
 		return
 
+	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		return
+
 	if bool(
 		npc.get_meta(
 			"leaving",
@@ -1012,6 +1398,8 @@ func spawn_customer_for_cafe(
 
 		return
 
+	npc.set_meta("customer_state", "serving")
+
 	# =====================================================
 	# SERVICE
 	# =====================================================
@@ -1026,6 +1414,8 @@ func spawn_customer_for_cafe(
 		npc.name,
 		" using slot ",
 		slot_index,
+		" at ",
+		cafe_plot.name,
 		" for ",
 		service_time,
 		"s"
@@ -1035,6 +1425,9 @@ func spawn_customer_for_cafe(
 		await get_tree().process_frame
 
 		if not is_instance_valid(npc):
+			return
+
+		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
 			return
 
 		if bool(
@@ -1060,6 +1453,9 @@ func spawn_customer_for_cafe(
 	# =====================================================
 
 	if not is_instance_valid(npc):
+		return
+
+	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
 		return
 
 	if bool(
@@ -1094,17 +1490,61 @@ func spawn_customer_for_cafe(
 	print(
 		npc.name,
 		" paid $",
-		income
+		income,
+		" at ",
+		cafe_plot.name
 	)
 
 	# =====================================================
 	# LEAVE
 	# =====================================================
 
-	await send_customer_out(
+	send_customer_out(
 		npc,
 		cafe_plot
 	)
+
+
+func promote_next_waiting_customer(
+	cafe_plot: Button
+) -> void:
+	if not is_instance_valid(cafe_plot):
+		return
+
+	if cafe_plot.get_meta("state") != "active":
+		return
+
+	cleanup_customer_lists(cafe_plot)
+	var slot_index := get_free_service_slot_index(cafe_plot)
+
+	if slot_index == -1:
+		return
+
+	var waiting_customers: Array = cafe_plot.get_meta(
+		"waiting_customers",
+		[]
+	)
+
+	if waiting_customers.is_empty():
+		return
+
+	var npc = waiting_customers.pop_front()
+	cafe_plot.set_meta("waiting_customers", waiting_customers)
+
+	if not is_instance_valid(npc):
+		promote_next_waiting_customer(cafe_plot)
+		return
+
+	# Move between collections and reserve the released slot atomically.
+	npc.set_meta("queue_index", -1)
+	npc.set_meta("service_slot_index", slot_index)
+	npc.set_meta("customer_state", "moving_from_queue_to_service")
+	var assignment_id := int(npc.get_meta("assignment_id", 0)) + 1
+	npc.set_meta("assignment_id", assignment_id)
+	npc.set_meta("current_cafe", cafe_plot)
+	register_customer(cafe_plot, npc)
+	refresh_queue_positions(cafe_plot)
+	start_customer_service(npc, cafe_plot, slot_index, assignment_id)
 
 
 # =========================================================
@@ -1116,6 +1556,10 @@ func send_customer_out(
 	cafe_plot: Button
 ) -> void:
 	if not is_instance_valid(npc):
+		return
+
+	# Ignore stale exit calls from a coroutine that no longer owns this NPC.
+	if npc.get_meta("current_cafe", null) != cafe_plot:
 		return
 
 	if bool(
@@ -1130,19 +1574,37 @@ func send_customer_out(
 		"leaving",
 		true
 	)
+	npc.set_meta("customer_state", "leaving")
+	npc.set_meta(
+		"assignment_id",
+		int(npc.get_meta("assignment_id", 0)) + 1
+	)
+	npc.set_meta("current_cafe", null)
+
+	var released_service_slot := int(
+		npc.get_meta("service_slot_index", -1)
+	) >= 0
 
 	# Giải phóng slot ngay khi khách bắt đầu rời đi.
 	npc.set_meta(
 		"service_slot_index",
 		-1
 	)
+	npc.set_meta("queue_index", -1)
 
 	unregister_customer(
 		cafe_plot,
 		npc
 	)
+	unregister_waiting_customer(cafe_plot, npc)
 
 	npc.cancel_movement()
+
+	if cafe_plot.get_meta("state") == "active":
+		refresh_queue_positions(cafe_plot)
+
+		if released_service_slot:
+			promote_next_waiting_customer(cafe_plot)
 
 	var walk_out: Tween = npc.walk_to(
 		Vector2(

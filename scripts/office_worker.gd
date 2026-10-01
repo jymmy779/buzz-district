@@ -1,11 +1,43 @@
 extends Node2D
 
 
+@onready var patience_bar: ProgressBar = $PatienceBar
+
+
 var move_tween: Tween = null
 
 
 func _ready() -> void:
 	queue_redraw()
+	update_patience_bar()
+
+
+func _process(_delta: float) -> void:
+	update_patience_bar()
+
+
+func update_patience_bar() -> void:
+	if not is_instance_valid(patience_bar):
+		return
+
+	var customer_state := str(get_meta("customer_state", ""))
+	patience_bar.visible = customer_state == "waiting"
+
+	if not patience_bar.visible:
+		return
+
+	var patience_max := float(get_meta("patience_max", 0.0))
+	var patience_remaining := float(get_meta("patience_remaining", 0.0))
+
+	if patience_max <= 0.0:
+		patience_bar.value = 0.0
+		return
+
+	patience_bar.value = clampf(
+		patience_remaining / patience_max * 100.0,
+		0.0,
+		100.0
+	)
 
 
 func _draw() -> void:

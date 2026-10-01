@@ -4,3 +4,14 @@
 
 [node name="OfficeWorker" type="Node2D" unique_id=384596373]
 script = ExtResource("1_47a1w")
+
+[node name="PatienceBar" type="ProgressBar" parent="."]
+visible = false
+z_index = 10
+offset_left = -20.0
+offset_top = -28.0
+offset_right = 20.0
+offset_bottom = -21.0
+mouse_filter = 2
+value = 100.0
+show_percentage = false
