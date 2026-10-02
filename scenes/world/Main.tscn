@@ -22,6 +22,13 @@ offset_right = 690.0
 offset_bottom = 620.0
 text = "Build Cafe - $300"
 
+[node name="BuildMinimartButton" type="Button" parent="UI"]
+offset_left = 700.0
+offset_top = 560.0
+offset_right = 920.0
+offset_bottom = 620.0
+text = "Build Minimart - $400"
+
 [node name="UpgradeCafeButton" type="Button" parent="UI" unique_id=1517238353]
 offset_left = 700.0
 offset_top = 560.0
@@ -78,3 +85,5 @@ color = Color(0.7683069, 0.7683071, 0.76830703, 1)
 
 [connection signal="pressed" from="UI/BuildCafeButton" to="." method="_on_build_cafe_button_pressed"]
 [connection signal="pressed" from="UI/UpgradeCafeButton" to="." method="_on_upgrade_cafe_button_pressed"]
+
+[connection signal="pressed" from="UI/BuildMinimartButton" to="." method="_on_build_minimart_button_pressed"]

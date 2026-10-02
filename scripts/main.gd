@@ -31,24 +31,64 @@ const DEMAND_NAMES := {
 # PROTOTYPE BALANCE DATA
 # =========================================================
 
-const CAFE_LEVEL_STATS := {
-	1: {
-		"capacity": 1,
-		"queue_capacity": 3,
-		"service_time": 4.0,
-		"income": 10
+const BUILDING_DATA := {
+	"cafe": {
+		"display_name": "Cafe",
+		"build_cost": 300,
+		"max_level": 3,
+		"levels": {
+			1: {
+				"capacity": 1,
+				"queue_capacity": 3,
+				"service_time": 4.0,
+				"income": 10,
+				"upgrade_cost": 200,
+				"upgrade_time": 10
+			},
+			2: {
+				"capacity": 2,
+				"queue_capacity": 4,
+				"service_time": 3.2,
+				"income": 12,
+				"upgrade_cost": 400,
+				"upgrade_time": 20
+			},
+			3: {
+				"capacity": 3,
+				"queue_capacity": 5,
+				"service_time": 2.7,
+				"income": 15
+			}
+		}
 	},
-	2: {
-		"capacity": 2,
-		"queue_capacity": 4,
-		"service_time": 3.2,
-		"income": 12
-	},
-	3: {
-		"capacity": 3,
-		"queue_capacity": 5,
-		"service_time": 2.7,
-		"income": 15
+	"minimart": {
+		"display_name": "Minimart",
+		"build_cost": 400,
+		"max_level": 3,
+		"levels": {
+			1: {
+				"capacity": 1,
+				"queue_capacity": 2,
+				"service_time": 3.0,
+				"income": 8,
+				"upgrade_cost": 250,
+				"upgrade_time": 10
+			},
+			2: {
+				"capacity": 2,
+				"queue_capacity": 3,
+				"service_time": 2.5,
+				"income": 11,
+				"upgrade_cost": 500,
+				"upgrade_time": 20
+			},
+			3: {
+				"capacity": 3,
+				"queue_capacity": 4,
+				"service_time": 2.0,
+				"income": 14
+			}
+		}
 	}
 }
 
@@ -58,6 +98,7 @@ const CAFE_LEVEL_STATS := {
 @onready var plot_grid: GridContainer = $PlotGrid
 @onready var money_label: Label = $UI/MoneyLabel
 @onready var build_cafe_button: Button = $UI/BuildCafeButton
+@onready var build_minimart_button: Button = $UI/BuildMinimartButton
 @onready var upgrade_cafe_button: Button = $UI/UpgradeCafeButton
 
 
@@ -74,6 +115,8 @@ var demand_state: int = DemandState.NORMAL
 # =========================================================
 
 func _ready() -> void:
+	build_cafe_button.text = "Build Cafe - $" + str(get_building_data("cafe")["build_cost"])
+	build_minimart_button.text = "Build Minimart - $" + str(get_building_data("minimart")["build_cost"])
 	update_money_label()
 
 	for child in plot_grid.get_children():
@@ -118,6 +161,7 @@ func _ready() -> void:
 			)
 
 	build_cafe_button.hide()
+	build_minimart_button.hide()
 	upgrade_cafe_button.hide()
 
 	schedule_next_customer()
@@ -225,9 +269,9 @@ func _on_plot_pressed(plot: Button) -> void:
 		)
 	)
 
-	if building_type == "cafe":
+	if not get_building_data(building_type).is_empty():
 		print(
-			"Selected cafe: ",
+			"Selected business: ",
 			selected_plot.name
 		)
 
@@ -245,95 +289,60 @@ func _on_plot_pressed(plot: Button) -> void:
 
 
 # =========================================================
-# BUILD CAFE
+# BUILD BUSINESS
 # =========================================================
 
-func build_cafe() -> void:
-	if selected_plot == null:
+func build_business(plot: Button, building_type: String) -> void:
+	if not is_instance_valid(plot):
+		return
+	if plot.get_meta("state", "empty") != "empty":
+		return
+	if plot.get_meta("building_type", "") != "":
 		return
 
-	if selected_plot.get_meta("state") != "empty":
+	var data := get_building_data(building_type)
+	if data.is_empty():
 		return
 
-	if selected_plot.get_meta("building_type") != "":
-		return
-
-	var cafe_price := 300
-
-	if money < cafe_price:
+	var build_cost := int(data["build_cost"])
+	if money < build_cost:
 		print("Not enough money")
 		return
 
-	money -= cafe_price
-
-	selected_plot.set_meta(
-		"building_type",
-		"cafe"
-	)
-
-	selected_plot.set_meta(
-		"level",
-		1
-	)
-
-	selected_plot.set_meta(
-		"state",
-		"active"
-	)
-
-	selected_plot.set_meta(
-		"customers",
-		[]
-	)
-
-	selected_plot.set_meta(
-		"waiting_customers",
-		[]
-	)
-
-	selected_plot.text = "CAFE\nLv.1"
-	selected_plot.modulate = Color.WHITE
-
+	money -= build_cost
+	plot.set_meta("building_type", building_type)
+	plot.set_meta("level", 1)
+	plot.set_meta("state", "active")
+	plot.set_meta("customers", [])
+	plot.set_meta("waiting_customers", [])
+	plot.text = get_building_name(plot).to_upper() + "\nLv.1"
+	plot.modulate = Color.WHITE
 	update_money_label()
-
-	print(
-		"Built Cafe: ",
-		selected_plot.name
-	)
-
-	selected_plot = null
-
+	print("Built ", get_building_name(plot), ": ", plot.name)
+	if selected_plot == plot:
+		selected_plot = null
 	update_action_buttons()
 
-
 # =========================================================
-# UPGRADE CAFE
+# UPGRADE BUSINESS
 # =========================================================
 
-func upgrade_cafe() -> void:
-	if selected_plot == null:
+func upgrade_business(business_plot: Button) -> void:
+	if not is_active_business(business_plot):
 		return
-
-	if selected_plot.get_meta("building_type") != "cafe":
-		return
-
-	if selected_plot.get_meta("state") != "active":
-		return
-
-	var cafe_plot := selected_plot
 
 	var current_level: int = int(
-		cafe_plot.get_meta(
+		business_plot.get_meta(
 			"level",
 			1
 		)
 	)
 
-	if current_level >= 3:
-		print("Cafe already max level")
+	if current_level >= get_building_max_level(business_plot):
+		print("Business already max level")
 		return
 
-	var upgrade_price := current_level * 200
+	var upgrade_price := get_building_upgrade_cost(business_plot)
 
 	if money < upgrade_price:
 		print("Not enough money")
@@ -343,32 +352,30 @@ func upgrade_cafe() -> void:
 
 	update_money_label()
 
-	# Đóng Cafe trước.
-	cafe_plot.set_meta(
+	# Close the business before rerouting customers.
+	business_plot.set_meta(
 		"state",
 		"upgrading"
 	)
 
 	# Đuổi toàn bộ khách.
 	evict_customers(
-		cafe_plot
+		business_plot
 	)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"upgrade_target_level",
 		current_level + 1
 	)
 
-	# Lv1 -> Lv2 = 10 giây
-	# Lv2 -> Lv3 = 20 giây
-	var upgrade_time := current_level * 10
+	var upgrade_time := get_building_upgrade_time(business_plot)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"upgrade_remaining",
 		upgrade_time
 	)
 
-	cafe_plot.modulate = Color.WHITE
+	business_plot.modulate = Color.WHITE
 
 	selected_plot = null
 
@@ -376,14 +383,14 @@ func upgrade_cafe() -> void:
 
 	print(
 		"Started upgrading ",
-		cafe_plot.name,
+		business_plot.name,
 		" for ",
 		upgrade_time,
 		" seconds"
 	)
 
 	await run_upgrade_timer(
-		cafe_plot
+		business_plot
 	)
 
 
@@ -408,7 +415,7 @@ func run_upgrade_timer(
 			break
 
 		plot.text = (
-			"CAFE\n"
+			get_building_name(plot).to_upper() + "\n"
 			+ "UPGRADING\n"
 			+ str(remaining)
 			+ "s"
@@ -441,12 +448,12 @@ func run_upgrade_timer(
 			)
 		)
 
-	finish_cafe_upgrade(
+	finish_business_upgrade(
 		plot
 	)
 
 
-func finish_cafe_upgrade(
+func finish_business_upgrade(
 	plot: Button
 ) -> void:
 	if not is_instance_valid(plot):
@@ -483,12 +490,12 @@ func finish_cafe_upgrade(
 	)
 
 	plot.text = (
-		"CAFE\nLv."
+		get_building_name(plot).to_upper() + "\nLv."
 		+ str(target_level)
 	)
 
 	print(
-		"Cafe upgrade complete: ",
+		"Business upgrade complete: ",
 		plot.name,
 		" Lv.",
 		target_level
@@ -496,81 +503,74 @@ func finish_cafe_upgrade(
 
 
 # =========================================================
-# CAFE STATS
+# BUSINESS DATA HELPERS
 # =========================================================
 
-func get_cafe_stats(
-	cafe_plot: Button
-) -> Dictionary:
-	var level: int = int(
-		cafe_plot.get_meta(
-			"level",
-			1
-		)
-	)
-
-	if CAFE_LEVEL_STATS.has(level):
-		return CAFE_LEVEL_STATS[level]
-
-	return CAFE_LEVEL_STATS[1]
+func get_building_data(building_type: String) -> Dictionary:
+	return BUILDING_DATA.get(building_type, {})
 
 
-func get_cafe_capacity(
-	cafe_plot: Button
-) -> int:
-	var stats := get_cafe_stats(
-		cafe_plot
-	)
+func get_building_level_data(plot: Button) -> Dictionary:
+	if not is_instance_valid(plot):
+		return {}
+	var data := get_building_data(str(plot.get_meta("building_type", "")))
+	var levels: Dictionary = data.get("levels", {})
+	return levels.get(int(plot.get_meta("level", 0)), {})
 
-	return int(
-		stats["capacity"]
+
+func is_active_business(plot: Button) -> bool:
+	return (
+		is_instance_valid(plot)
+		and plot.get_meta("state", "") == "active"
+		and not get_building_level_data(plot).is_empty()
 	)
 
 
-func get_cafe_service_time(
-	cafe_plot: Button
-) -> float:
-	var stats := get_cafe_stats(
-		cafe_plot
-	)
-
-	return float(
-		stats["service_time"]
-	)
+func get_building_name(plot: Button) -> String:
+	var building_type := str(plot.get_meta("building_type", ""))
+	return str(get_building_data(building_type).get("display_name", building_type.capitalize()))
 
 
-func get_cafe_queue_capacity(
-	cafe_plot: Button
-) -> int:
-	var stats := get_cafe_stats(cafe_plot)
-
-	return int(stats["queue_capacity"])
+func get_building_capacity(plot: Button) -> int:
+	return int(get_building_level_data(plot).get("capacity", 0))
 
 
-func get_cafe_income(
-	cafe_plot: Button
-) -> int:
-	var stats := get_cafe_stats(
-		cafe_plot
-	)
+func get_building_queue_capacity(plot: Button) -> int:
+	return int(get_building_level_data(plot).get("queue_capacity", 0))
 
-	return int(
-		stats["income"]
-	)
 
+func get_building_service_time(plot: Button) -> float:
+	return float(get_building_level_data(plot).get("service_time", 0.0))
+
+
+func get_building_income(plot: Button) -> int:
+	return int(get_building_level_data(plot).get("income", 0))
+
+
+func get_building_max_level(plot: Button) -> int:
+	var data := get_building_data(str(plot.get_meta("building_type", "")))
+	return int(data.get("max_level", 0))
+
+
+func get_building_upgrade_cost(plot: Button) -> int:
+	return int(get_building_level_data(plot).get("upgrade_cost", 0))
+
+
+func get_building_upgrade_time(plot: Button) -> int:
+	return int(get_building_level_data(plot).get("upgrade_time", 0))
 
 # =========================================================
 # SERVICE SLOT SYSTEM
 # =========================================================
 
 func get_free_service_slot_index(
-	cafe_plot: Button
+	business_plot: Button
 ) -> int:
-	var capacity := get_cafe_capacity(
-		cafe_plot
+	var capacity := get_building_capacity(
+		business_plot
 	)
 
-	var customers: Array = cafe_plot.get_meta(
+	var customers: Array = business_plot.get_meta(
 		"customers",
 		[]
 	)
@@ -607,16 +607,16 @@ func get_free_service_slot_index(
 
 
 func get_service_slot_position(
-	cafe_plot: Button,
+	business_plot: Button,
 	slot_index: int
 ) -> Vector2:
 	var center := (
-		cafe_plot.global_position
-		+ cafe_plot.size / 2.0
+		business_plot.global_position
+		+ business_plot.size / 2.0
 	)
 
-	var capacity := get_cafe_capacity(
-		cafe_plot
+	var capacity := get_building_capacity(
+		business_plot
 	)
 
 	match capacity:
@@ -657,12 +657,12 @@ func get_service_slot_position(
 
 
 func get_queue_slot_position(
-	cafe_plot: Button,
+	business_plot: Button,
 	queue_index: int
 ) -> Vector2:
 	var center := (
-		cafe_plot.global_position
-		+ cafe_plot.size / 2.0
+		business_plot.global_position
+		+ business_plot.size / 2.0
 	)
 
 	return center + Vector2(
@@ -676,16 +676,13 @@ func get_queue_slot_position(
 # =========================================================
 
 func try_spawn_customer() -> void:
-	var available_cafes: Array[Button] = []
+	var available_businesses: Array[Button] = []
 
 	for plot in plot_grid.get_children():
 		if not (plot is Button):
 			continue
 
-		if plot.get_meta("building_type") != "cafe":
-			continue
-
-		if plot.get_meta("state") != "active":
+		if not is_active_business(plot):
 			continue
 
 		cleanup_customer_lists(
@@ -702,19 +699,19 @@ func try_spawn_customer() -> void:
 
 		if (
 			free_slot != -1
-			or waiting_customers.size() < get_cafe_queue_capacity(plot)
+			or waiting_customers.size() < get_building_queue_capacity(plot)
 		):
-			available_cafes.append(
+			available_businesses.append(
 				plot
 			)
 
-	if available_cafes.is_empty():
+	if available_businesses.is_empty():
 		return
 
-	var cafe: Button = available_cafes.pick_random()
+	var business: Button = available_businesses.pick_random()
 
-	spawn_customer_for_cafe(
-		cafe
+	spawn_customer_for_business(
+		business
 	)
 
 
@@ -731,6 +728,7 @@ func update_money_label() -> void:
 
 func update_action_buttons() -> void:
 	build_cafe_button.hide()
+	build_minimart_button.hide()
 	upgrade_cafe_button.hide()
 
 	if selected_plot == null:
@@ -746,21 +744,12 @@ func update_action_buttons() -> void:
 	if state == "upgrading":
 		return
 
-	var building_type: String = str(
-		selected_plot.get_meta(
-			"building_type",
-			""
-		)
-	)
-
 	if state == "empty":
 		build_cafe_button.show()
+		build_minimart_button.show()
 		return
 
-	if (
-		building_type == "cafe"
-		and state == "active"
-	):
+	if is_active_business(selected_plot):
 		var level: int = int(
 			selected_plot.get_meta(
 				"level",
@@ -770,20 +759,18 @@ func update_action_buttons() -> void:
 
 		upgrade_cafe_button.show()
 
-		if level >= 3:
+		if level >= get_building_max_level(selected_plot):
 			upgrade_cafe_button.text = (
-				"Cafe MAX LEVEL"
+				get_building_name(selected_plot) + " MAX LEVEL"
 			)
 
 			upgrade_cafe_button.disabled = true
 
 		else:
-			var upgrade_price := (
-				level * 200
-			)
+			var upgrade_price := get_building_upgrade_cost(selected_plot)
 
 			upgrade_cafe_button.text = (
-				"Upgrade Cafe - $"
+				"Upgrade " + get_building_name(selected_plot) + " - $"
 				+ str(upgrade_price)
 			)
 
@@ -791,11 +778,15 @@ func update_action_buttons() -> void:
 
 
 func _on_build_cafe_button_pressed() -> void:
-	build_cafe()
+	build_business(selected_plot, "cafe")
+
+
+func _on_build_minimart_button_pressed() -> void:
+	build_business(selected_plot, "minimart")
 
 
 func _on_upgrade_cafe_button_pressed() -> void:
-	upgrade_cafe()
+	upgrade_business(selected_plot)
 
 
 # =========================================================
@@ -868,12 +859,12 @@ func show_income_popup(
 # =========================================================
 
 func cleanup_customer_lists(
-	cafe_plot: Button
+	business_plot: Button
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	var customers: Array = cafe_plot.get_meta(
+	var customers: Array = business_plot.get_meta(
 		"customers",
 		[]
 	)
@@ -896,12 +887,12 @@ func cleanup_customer_lists(
 			customer
 		)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"customers",
 		valid_customers
 	)
 
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
@@ -919,30 +910,30 @@ func cleanup_customer_lists(
 
 		valid_waiting_customers.append(customer)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"waiting_customers",
 		valid_waiting_customers
 	)
 
 
 func register_customer(
-	cafe_plot: Button,
+	business_plot: Button,
 	npc: Node2D
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
 	if not is_instance_valid(npc):
 		return
 
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
 	waiting_customers.erase(npc)
-	cafe_plot.set_meta("waiting_customers", waiting_customers)
+	business_plot.set_meta("waiting_customers", waiting_customers)
 
-	var customers: Array = cafe_plot.get_meta(
+	var customers: Array = business_plot.get_meta(
 		"customers",
 		[]
 	)
@@ -952,24 +943,24 @@ func register_customer(
 			npc
 		)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"customers",
 		customers
 	)
 
 
 func register_waiting_customer(
-	cafe_plot: Button,
+	business_plot: Button,
 	npc: Node2D
 ) -> void:
-	if not is_instance_valid(cafe_plot) or not is_instance_valid(npc):
+	if not is_instance_valid(business_plot) or not is_instance_valid(npc):
 		return
 
-	var customers: Array = cafe_plot.get_meta("customers", [])
+	var customers: Array = business_plot.get_meta("customers", [])
 	customers.erase(npc)
-	cafe_plot.set_meta("customers", customers)
+	business_plot.set_meta("customers", customers)
 
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
@@ -977,17 +968,17 @@ func register_waiting_customer(
 	if not waiting_customers.has(npc):
 		waiting_customers.append(npc)
 
-	cafe_plot.set_meta("waiting_customers", waiting_customers)
+	business_plot.set_meta("waiting_customers", waiting_customers)
 
 
 func unregister_customer(
-	cafe_plot: Button,
+	business_plot: Button,
 	npc: Node2D
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	var customers: Array = cafe_plot.get_meta(
+	var customers: Array = business_plot.get_meta(
 		"customers",
 		[]
 	)
@@ -996,39 +987,39 @@ func unregister_customer(
 		npc
 	)
 
-	cafe_plot.set_meta(
+	business_plot.set_meta(
 		"customers",
 		customers
 	)
 
 	cleanup_customer_lists(
-		cafe_plot
+		business_plot
 	)
 
 
 func unregister_waiting_customer(
-	cafe_plot: Button,
+	business_plot: Button,
 	npc: Node2D
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
 	waiting_customers.erase(npc)
-	cafe_plot.set_meta("waiting_customers", waiting_customers)
+	business_plot.set_meta("waiting_customers", waiting_customers)
 
 
 func refresh_queue_positions(
-	cafe_plot: Button
+	business_plot: Button
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	cleanup_customer_lists(cafe_plot)
-	var waiting_customers: Array = cafe_plot.get_meta(
+	cleanup_customer_lists(business_plot)
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
@@ -1048,22 +1039,22 @@ func refresh_queue_positions(
 			npc.set_meta("customer_state", "waiting")
 
 		npc.walk_to(
-			get_queue_slot_position(cafe_plot, index),
+			get_queue_slot_position(business_plot, index),
 			2.0 if previous_index == -1 else 0.35
 		)
 
 
 func evict_customers(
-	cafe_plot: Button
+	business_plot: Button
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	var customers: Array = cafe_plot.get_meta(
+	var customers: Array = business_plot.get_meta(
 		"customers",
 		[]
 	)
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
@@ -1077,132 +1068,134 @@ func evict_customers(
 		if not is_instance_valid(npc):
 			continue
 
-		reassign_customer_from_upgrading_cafe(npc, cafe_plot)
+		reassign_customer_from_upgrading_business(npc, business_plot)
 
-	cafe_plot.set_meta("customers", [])
-	cafe_plot.set_meta("waiting_customers", [])
+	business_plot.set_meta("customers", [])
+	business_plot.set_meta("waiting_customers", [])
 
 
-func reassign_customer_from_upgrading_cafe(
+func reassign_customer_from_upgrading_business(
 	npc: Node2D,
-	old_cafe: Button
+	old_business: Button
 ) -> void:
-	if not is_instance_valid(npc) or not is_instance_valid(old_cafe):
+	if not is_instance_valid(npc) or not is_instance_valid(old_business):
 		return
 
-	# Invalidate the old movement/service coroutine before assigning a new cafe.
+	# Invalidate the old movement/service coroutine before assigning a new business.
 	var assignment_id := int(npc.get_meta("assignment_id", 0)) + 1
 	npc.set_meta("assignment_id", assignment_id)
 	npc.set_meta("customer_state", "rerouting")
-	npc.set_meta("current_cafe", null)
+	npc.set_meta("current_business", null)
 	npc.cancel_movement()
-	unregister_customer(old_cafe, npc)
-	unregister_waiting_customer(old_cafe, npc)
+	unregister_customer(old_business, npc)
+	unregister_waiting_customer(old_business, npc)
 	npc.set_meta("service_slot_index", -1)
 	npc.set_meta("queue_index", -1)
 	npc.set_meta("leaving", false)
 
-	var active_cafes: Array[Button] = []
+	var building_type := str(old_business.get_meta("building_type", ""))
+	var active_businesses: Array[Button] = []
 
 	for plot in plot_grid.get_children():
 		if not (plot is Button):
 			continue
 
-		if plot == old_cafe:
+		if plot == old_business:
 			continue
 
-		if plot.get_meta("building_type") != "cafe":
+		# Preserve the customer's original business type when rerouting.
+		if str(plot.get_meta("building_type", "")) != building_type:
 			continue
 
-		if plot.get_meta("state") != "active":
+		if not is_active_business(plot):
 			continue
 
 		cleanup_customer_lists(plot)
-		active_cafes.append(plot)
+		active_businesses.append(plot)
 
 	# First pass: prefer an immediately available service slot.
-	for cafe in active_cafes:
-		var slot_index := get_free_service_slot_index(cafe)
+	for business in active_businesses:
+		var slot_index := get_free_service_slot_index(business)
 
 		if slot_index == -1:
 			continue
 
 		npc.set_meta("service_slot_index", slot_index)
 		npc.set_meta("customer_state", "going_to_service")
-		npc.set_meta("current_cafe", cafe)
-		register_customer(cafe, npc)
+		npc.set_meta("current_business", business)
+		register_customer(business, npc)
 		print(
 			npc.name,
 			" rerouted from ",
-			old_cafe.name,
+			old_business.name,
 			" to ",
-			cafe.name,
+			business.name,
 			" service slot ",
 			slot_index
 		)
-		start_customer_service(npc, cafe, slot_index, assignment_id)
+		start_customer_service(npc, business, slot_index, assignment_id)
 		return
 
 	# Second pass: use the first queue that still has capacity.
-	for cafe in active_cafes:
-		var waiting_customers: Array = cafe.get_meta(
+	for business in active_businesses:
+		var waiting_customers: Array = business.get_meta(
 			"waiting_customers",
 			[]
 		)
 
-		if waiting_customers.size() >= get_cafe_queue_capacity(cafe):
+		if waiting_customers.size() >= get_building_queue_capacity(business):
 			continue
 
 		npc.set_meta("customer_state", "waiting")
-		npc.set_meta("current_cafe", cafe)
-		register_waiting_customer(cafe, npc)
-		refresh_queue_positions(cafe)
-		start_customer_patience(npc, cafe, assignment_id)
+		npc.set_meta("current_business", business)
+		register_waiting_customer(business, npc)
+		refresh_queue_positions(business)
+		start_customer_patience(npc, business, assignment_id)
 		print(
 			npc.name,
 			" rerouted from ",
-			old_cafe.name,
+			old_business.name,
 			" to ",
-			cafe.name,
+			business.name,
 			" queue slot ",
 			int(npc.get_meta("queue_index", -1))
 		)
 		return
 
-	# No other cafe can accept this customer.
+	# No active business of the same type can accept this customer.
 	print(
 		npc.name,
 		" could not reroute from ",
-		old_cafe.name,
-		": all other cafes are full"
+		old_business.name,
+		": no same-type business has room"
 	)
-	npc.set_meta("current_cafe", old_cafe)
-	send_customer_out(npc, old_cafe)
+	npc.set_meta("current_business", old_business)
+	send_customer_out(npc, old_business)
 
 
 # =========================================================
 # CUSTOMER BEHAVIOUR
 # =========================================================
 
-func spawn_customer_for_cafe(
-	cafe_plot: Button
+func spawn_customer_for_business(
+	business_plot: Button
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	if cafe_plot.get_meta("state") != "active":
+	if not is_active_business(business_plot):
 		return
 
-	cleanup_customer_lists(cafe_plot)
-	var slot_index := get_free_service_slot_index(cafe_plot)
-	var waiting_customers: Array = cafe_plot.get_meta(
+	cleanup_customer_lists(business_plot)
+	var slot_index := get_free_service_slot_index(business_plot)
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
 
 	if (
 		slot_index == -1
-		and waiting_customers.size() >= get_cafe_queue_capacity(cafe_plot)
+		and waiting_customers.size() >= get_building_queue_capacity(business_plot)
 	):
 		return
 
@@ -1214,7 +1207,7 @@ func spawn_customer_for_cafe(
 	npc.set_meta("queue_index", -1)
 	npc.set_meta("customer_state", "waiting")
 	npc.set_meta("assignment_id", 1)
-	npc.set_meta("current_cafe", cafe_plot)
+	npc.set_meta("current_business", business_plot)
 	var patience_max := randf_range(8.0, 15.0)
 	npc.set_meta("patience_max", patience_max)
 	npc.set_meta("patience_remaining", patience_max)
@@ -1224,27 +1217,27 @@ func spawn_customer_for_cafe(
 		# Reserve before any await so nearby spawns cannot claim the same slot.
 		npc.set_meta("service_slot_index", slot_index)
 		npc.set_meta("customer_state", "going_to_service")
-		register_customer(cafe_plot, npc)
-		start_customer_service(npc, cafe_plot, slot_index, 1)
+		register_customer(business_plot, npc)
+		start_customer_service(npc, business_plot, slot_index, 1)
 		return
 
-	register_waiting_customer(cafe_plot, npc)
-	refresh_queue_positions(cafe_plot)
-	start_customer_patience(npc, cafe_plot, 1)
+	register_waiting_customer(business_plot, npc)
+	refresh_queue_positions(business_plot)
+	start_customer_patience(npc, business_plot, 1)
 
 
 func is_customer_assignment_current(
 	npc: Node2D,
-	cafe_plot: Button,
+	business_plot: Button,
 	assignment_id: int
 ) -> bool:
-	if not is_instance_valid(npc) or not is_instance_valid(cafe_plot):
+	if not is_instance_valid(npc) or not is_instance_valid(business_plot):
 		return false
 
 	if int(npc.get_meta("assignment_id", 0)) != assignment_id:
 		return false
 
-	if npc.get_meta("current_cafe", null) != cafe_plot:
+	if npc.get_meta("current_business", null) != business_plot:
 		return false
 
 	var customer_state := str(npc.get_meta("customer_state", ""))
@@ -1254,10 +1247,10 @@ func is_customer_assignment_current(
 
 func start_customer_patience(
 	npc: Node2D,
-	cafe_plot: Button,
+	business_plot: Button,
 	assignment_id: int
 ) -> void:
-	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+	if not is_customer_assignment_current(npc, business_plot, assignment_id):
 		return
 
 	var patience_run_id := int(npc.get_meta("patience_run_id", 0)) + 1
@@ -1267,13 +1260,13 @@ func start_customer_patience(
 	while true:
 		await get_tree().process_frame
 
-		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		if not is_customer_assignment_current(npc, business_plot, assignment_id):
 			return
 
 		if int(npc.get_meta("patience_run_id", 0)) != patience_run_id:
 			return
 
-		var waiting_customers: Array = cafe_plot.get_meta(
+		var waiting_customers: Array = business_plot.get_meta(
 			"waiting_customers",
 			[]
 		)
@@ -1290,7 +1283,7 @@ func start_customer_patience(
 				return
 
 			var queue_position := get_queue_slot_position(
-				cafe_plot,
+				business_plot,
 				queue_index
 			)
 
@@ -1324,27 +1317,27 @@ func start_customer_patience(
 
 		if patience_remaining <= 0.0:
 			print(npc.name, " left queue: patience expired")
-			send_customer_out(npc, cafe_plot)
+			send_customer_out(npc, business_plot)
 			return
 
 
 func start_customer_service(
 	npc: Node2D,
-	cafe_plot: Button,
+	business_plot: Button,
 	slot_index: int,
 	assignment_id: int
 ) -> void:
-	if not is_instance_valid(npc) or not is_instance_valid(cafe_plot):
+	if not is_instance_valid(npc) or not is_instance_valid(business_plot):
 		return
 
-	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+	if not is_customer_assignment_current(npc, business_plot, assignment_id):
 		return
 
-	if cafe_plot.get_meta("state") != "active":
-		send_customer_out(npc, cafe_plot)
+	if not is_active_business(business_plot):
+		send_customer_out(npc, business_plot)
 		return
 
-	var service_position := get_service_slot_position(cafe_plot, slot_index)
+	var service_position := get_service_slot_position(business_plot, slot_index)
 	var walk_in: Tween = npc.walk_to(service_position, 2.0)
 
 	while (
@@ -1357,7 +1350,7 @@ func start_customer_service(
 		if not is_instance_valid(npc):
 			return
 
-		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		if not is_customer_assignment_current(npc, business_plot, assignment_id):
 			return
 
 		if bool(
@@ -1368,10 +1361,10 @@ func start_customer_service(
 		):
 			return
 
-		if cafe_plot.get_meta("state") != "active":
+		if not is_active_business(business_plot):
 			send_customer_out(
 				npc,
-				cafe_plot
+				business_plot
 			)
 
 			return
@@ -1379,7 +1372,7 @@ func start_customer_service(
 	if not is_instance_valid(npc):
 		return
 
-	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+	if not is_customer_assignment_current(npc, business_plot, assignment_id):
 		return
 
 	if bool(
@@ -1390,10 +1383,10 @@ func start_customer_service(
 	):
 		return
 
-	if cafe_plot.get_meta("state") != "active":
+	if not is_active_business(business_plot):
 		send_customer_out(
 			npc,
-			cafe_plot
+			business_plot
 		)
 
 		return
@@ -1404,8 +1397,8 @@ func start_customer_service(
 	# SERVICE
 	# =====================================================
 
-	var service_time := get_cafe_service_time(
-		cafe_plot
+	var service_time := get_building_service_time(
+		business_plot
 	)
 
 	var elapsed := 0.0
@@ -1415,7 +1408,7 @@ func start_customer_service(
 		" using slot ",
 		slot_index,
 		" at ",
-		cafe_plot.name,
+		business_plot.name,
 		" for ",
 		service_time,
 		"s"
@@ -1427,7 +1420,7 @@ func start_customer_service(
 		if not is_instance_valid(npc):
 			return
 
-		if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+		if not is_customer_assignment_current(npc, business_plot, assignment_id):
 			return
 
 		if bool(
@@ -1438,10 +1431,10 @@ func start_customer_service(
 		):
 			return
 
-		if cafe_plot.get_meta("state") != "active":
+		if not is_active_business(business_plot):
 			send_customer_out(
 				npc,
-				cafe_plot
+				business_plot
 			)
 
 			return
@@ -1455,7 +1448,7 @@ func start_customer_service(
 	if not is_instance_valid(npc):
 		return
 
-	if not is_customer_assignment_current(npc, cafe_plot, assignment_id):
+	if not is_customer_assignment_current(npc, business_plot, assignment_id):
 		return
 
 	if bool(
@@ -1466,16 +1459,16 @@ func start_customer_service(
 	):
 		return
 
-	if cafe_plot.get_meta("state") != "active":
+	if not is_active_business(business_plot):
 		send_customer_out(
 			npc,
-			cafe_plot
+			business_plot
 		)
 
 		return
 
-	var income := get_cafe_income(
-		cafe_plot
+	var income := get_building_income(
+		business_plot
 	)
 
 	money += income
@@ -1483,7 +1476,7 @@ func start_customer_service(
 	update_money_label()
 
 	show_income_popup(
-		cafe_plot,
+		business_plot,
 		income
 	)
 
@@ -1492,7 +1485,7 @@ func start_customer_service(
 		" paid $",
 		income,
 		" at ",
-		cafe_plot.name
+		business_plot.name
 	)
 
 	# =====================================================
@@ -1501,26 +1494,26 @@ func start_customer_service(
 
 	send_customer_out(
 		npc,
-		cafe_plot
+		business_plot
 	)
 
 
 func promote_next_waiting_customer(
-	cafe_plot: Button
+	business_plot: Button
 ) -> void:
-	if not is_instance_valid(cafe_plot):
+	if not is_instance_valid(business_plot):
 		return
 
-	if cafe_plot.get_meta("state") != "active":
+	if not is_active_business(business_plot):
 		return
 
-	cleanup_customer_lists(cafe_plot)
-	var slot_index := get_free_service_slot_index(cafe_plot)
+	cleanup_customer_lists(business_plot)
+	var slot_index := get_free_service_slot_index(business_plot)
 
 	if slot_index == -1:
 		return
 
-	var waiting_customers: Array = cafe_plot.get_meta(
+	var waiting_customers: Array = business_plot.get_meta(
 		"waiting_customers",
 		[]
 	)
@@ -1529,10 +1522,10 @@ func promote_next_waiting_customer(
 		return
 
 	var npc = waiting_customers.pop_front()
-	cafe_plot.set_meta("waiting_customers", waiting_customers)
+	business_plot.set_meta("waiting_customers", waiting_customers)
 
 	if not is_instance_valid(npc):
-		promote_next_waiting_customer(cafe_plot)
+		promote_next_waiting_customer(business_plot)
 		return
 
 	# Move between collections and reserve the released slot atomically.
@@ -1541,10 +1534,10 @@ func promote_next_waiting_customer(
 	npc.set_meta("customer_state", "moving_from_queue_to_service")
 	var assignment_id := int(npc.get_meta("assignment_id", 0)) + 1
 	npc.set_meta("assignment_id", assignment_id)
-	npc.set_meta("current_cafe", cafe_plot)
-	register_customer(cafe_plot, npc)
-	refresh_queue_positions(cafe_plot)
-	start_customer_service(npc, cafe_plot, slot_index, assignment_id)
+	npc.set_meta("current_business", business_plot)
+	register_customer(business_plot, npc)
+	refresh_queue_positions(business_plot)
+	start_customer_service(npc, business_plot, slot_index, assignment_id)
 
 
 # =========================================================
@@ -1553,13 +1546,13 @@ func promote_next_waiting_customer(
 
 func send_customer_out(
 	npc: Node2D,
-	cafe_plot: Button
+	business_plot: Button
 ) -> void:
 	if not is_instance_valid(npc):
 		return
 
 	# Ignore stale exit calls from a coroutine that no longer owns this NPC.
-	if npc.get_meta("current_cafe", null) != cafe_plot:
+	if npc.get_meta("current_business", null) != business_plot:
 		return
 
 	if bool(
@@ -1579,7 +1572,7 @@ func send_customer_out(
 		"assignment_id",
 		int(npc.get_meta("assignment_id", 0)) + 1
 	)
-	npc.set_meta("current_cafe", null)
+	npc.set_meta("current_business", null)
 
 	var released_service_slot := int(
 		npc.get_meta("service_slot_index", -1)
@@ -1593,18 +1586,18 @@ func send_customer_out(
 	npc.set_meta("queue_index", -1)
 
 	unregister_customer(
-		cafe_plot,
+		business_plot,
 		npc
 	)
-	unregister_waiting_customer(cafe_plot, npc)
+	unregister_waiting_customer(business_plot, npc)
 
 	npc.cancel_movement()
 
-	if cafe_plot.get_meta("state") == "active":
-		refresh_queue_positions(cafe_plot)
+	if is_active_business(business_plot):
+		refresh_queue_positions(business_plot)
 
 		if released_service_slot:
-			promote_next_waiting_customer(cafe_plot)
+			promote_next_waiting_customer(business_plot)
 
 	var walk_out: Tween = npc.walk_to(
 		Vector2(
