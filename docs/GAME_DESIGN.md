@@ -61,6 +61,33 @@ The player repeatedly decides:
 - whether a temporary trend is worth investing in;
 - how to respond when one business closure overloads another.
 
+## Customer trips
+
+Customers can make a lightweight district trip instead of always leaving after one
+purchase. Most prototype trips still contain one stop; some contain two different
+business types when both Cafe and Minimart are active. Each stop independently
+selects a valid offering, so a Cafe visit still participates in Matcha Wave before
+the same customer moves to a Minimart purchase.
+
+Trip progression and rerouting are intentionally different. A successful purchase
+can advance to a different planned business type and restores the customer's full
+patience for that new decision. An interrupted unresolved stop may reroute only to
+another building of the same type and keeps the patience already spent. If the next
+planned stop cannot accept the customer, the trip ends cleanly.
+
+## Customer archetypes
+
+The prototype has three data-driven customer archetypes sharing one placeholder
+visual: Office Worker, Student, and Shipper. They differ only through authored
+simulation weights: how often they spawn, patience, preferred first business, trip
+length, and Cafe offering mix. Office Workers lean toward Cafe and Coffee, Students
+lean toward Matcha and wait longer, and Shippers favor Minimart, shorter trips, and
+lower patience.
+
+Preferences influence selection; they do not override an explicit current need.
+Trends multiply the profile's offering mix, so Matcha Wave shifts every archetype
+toward Matcha while preserving differences between them.
+
 ## Progression layers
 
 ### Business progression
@@ -154,9 +181,10 @@ Examples:
 
 ### Photobooth
 
-- session-based service;
-- potentially group customers;
-- highly trend-sensitive.
+- **CURRENT prototype:** Quick Shot and Premium Strip use generic offering/service
+  flow; Students prefer this business and Premium Strip more than other profiles.
+- Future possibilities: session-based presentation, group customers, poses, and
+  stronger trend sensitivity. These are not implemented yet.
 
 ### Pickleball Court
 

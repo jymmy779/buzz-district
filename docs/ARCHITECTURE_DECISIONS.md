@@ -40,15 +40,17 @@ Business-specific logic should only exist when the business truly behaves differ
 
 ---
 
-## ADR-005 — Building-level service values are temporary
+## ADR-005 — Offerings own base service values
 
-**Decision:** Current prototype may store `service_time` and `income` per building level.
+**Decision:** Minimal generic offerings now own base_service_time, base_price and
+selection weight. Building levels own service_speed_multiplier, income_bonus and
+capacities. NPCs store a transient offering_id.
 
-Long-term, products/services should define base time and price while the building defines processing speed/capacity.
+**Reason:** Cafe products and generic services share one service/payment pipeline.
+The previous building-level fixed service_time/income abstraction is replaced.
+No full menu, inventory or preference system is included. Minimal trend selection modifiers are described in ADR-015.
 
-**Reason:** Avoid building a product system before the core management loop is validated.
-
-**Status:** DECIDED.
+**Status:** CURRENT.
 
 ---
 
@@ -96,9 +98,13 @@ Customers must reroute or leave.
 
 ## ADR-010 — Rerouting before leaving
 
-**Decision:** When a destination becomes unavailable, a customer tries another valid active business before leaving the map.
+**Decision:** When a destination becomes unavailable, a customer tries another
+valid active business for its current trip need before leaving the map.
 
-Current prototype may allow cross-business-type rerouting.
+Rerouting is same-business-type only. It does not advance the trip, reset patience,
+or replace a compatible offering. Service restarts and remaining patience is
+retained. Cross-business-type movement happens only after a successful purchase
+advances the trip plan.
 
 Future preferences can make alternatives more realistic.
 
@@ -118,11 +124,11 @@ Remaining patience persists across rerouting.
 
 ## ADR-012 — Local save before backend
 
-**Decision:** Initial progression uses local persistence.
+**Decision:** Initial progression uses local persistence: versioned user://save.json. Save logical district state only; clear transient NPCs on load and resume upgrades from saved seconds without offline progression.
 
 Do not introduce an online database until an online product requirement exists.
 
-**Status:** DECIDED.
+**Status:** CURRENT.
 
 ---
 
@@ -139,3 +145,63 @@ Do not introduce an online database until an online product requirement exists.
 **Decision:** Long-term localization can swap culturally specific trend/event content rather than translating every joke literally.
 
 **Status:** DECIDED.
+
+
+---
+
+## ADR-015 — Small data-driven transient trend framework
+
+**Decision:** Keep exactly one active trend in the district controller. Trend data
+defines duration, offering-weight modifiers, customer-profile spawn modifiers, and
+ThreadZ start/end copy. Gameplay systems query modifier sections through a generic
+helper and do not identify Matcha Wave or Lunch Rush directly.
+
+Starting the same trend is ignored. Starting another trend ends the current record
+and begins the replacement at its full duration. The existing process loop owns the
+only countdown, avoiding duplicate timers and stale callbacks.
+
+**Reason:** Matcha Wave proves offering-mix pressure while Lunch Rush proves that a
+profile-spawn modifier can indirectly change district behavior through existing
+archetype preferences. This remains smaller than a scheduled event framework.
+
+**Persistence:** Active trend state is intentionally not saved. Loading ends the
+trend and restores normal selection weights; save version remains 1.
+
+**Status:** CURRENT.
+
+---
+
+## ADR-016 — Minimal transient customer trips
+
+**Decision:** Customers receive a one- or two-stop plan of business-type IDs at
+spawn. With multiple supported types, the selected customer profile supplies the
+one-stop/two-stop probabilities and first-business weights; a two-stop plan cannot
+repeat a type.
+
+Successful payment advances the plan. A new stop clears the previous offering and
+assignment, resets remaining patience to the existing maximum, and reuses generic
+service/queue assignment. If no valid destination can accept the next need, the
+customer leaves without rewriting the plan.
+
+**Persistence:** Trip plan, index, visited businesses, offering, assignment, and
+patience are transient and remain outside save version 1.
+
+**Status:** CURRENT.
+
+---
+
+## ADR-017 — Data-driven customer archetypes
+
+**Decision:** Office Worker, Student, and Shipper share the same NPC scene and
+generic service flow. A centralized profile record owns spawn weight, patience
+range, business preference weights, trip-length probabilities, and optional
+offering preferences.
+
+Offering selection combines base offering weight, a profile modifier, and the
+active trend modifier in one helper. Business preferences generate trips but never
+change an unresolved need during rerouting.
+
+**Persistence:** `customer_profile_id` and all NPC runtime state remain transient;
+save version 1 is unchanged.
+
+**Status:** CURRENT.

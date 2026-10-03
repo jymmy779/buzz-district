@@ -15,6 +15,17 @@ offset_bottom = 63.0
 theme_override_font_sizes/font_size = 28
 text = "$1,000"
 
+[node name="TrendLabel" type="Label" parent="UI"]
+visible = false
+offset_left = 24.0
+offset_top = 76.0
+offset_right = 420.0
+offset_bottom = 110.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.12, 0.3, 0.08, 1)
+theme_override_font_sizes/font_size = 24
+text = "TREND: Matcha Wave"
+
 [node name="BuildCafeButton" type="Button" parent="UI" unique_id=571400558]
 offset_left = 470.0
 offset_top = 560.0
@@ -29,12 +40,65 @@ offset_right = 920.0
 offset_bottom = 620.0
 text = "Build Minimart - $400"
 
+[node name="BuildPhotoboothButton" type="Button" parent="UI"]
+offset_left = 930.0
+offset_top = 560.0
+offset_right = 1145.0
+offset_bottom = 620.0
+text = "Build Photobooth - $500"
+
 [node name="UpgradeCafeButton" type="Button" parent="UI" unique_id=1517238353]
 offset_left = 700.0
 offset_top = 560.0
 offset_right = 920.0
 offset_bottom = 620.0
 text = "Upgrade Cafe - $200"
+
+[node name="ThreadZButton" type="Button" parent="UI"]
+offset_left = 24.0
+offset_top = 124.0
+offset_right = 164.0
+offset_bottom = 168.0
+text = "ThreadZ"
+
+[node name="ThreadZPanel" type="PanelContainer" parent="UI"]
+visible = false
+offset_left = 24.0
+offset_top = 180.0
+offset_right = 314.0
+offset_bottom = 530.0
+
+[node name="Margin" type="MarginContainer" parent="UI/ThreadZPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="UI/ThreadZPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="UI/ThreadZPanel/Margin/Content"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="UI/ThreadZPanel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "ThreadZ"
+
+[node name="CloseButton" type="Button" parent="UI/ThreadZPanel/Margin/Content/Header"]
+custom_minimum_size = Vector2(64, 40)
+layout_mode = 2
+text = "Đóng"
+
+[node name="Feed" type="RichTextLabel" parent="UI/ThreadZPanel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/normal_font_size = 16
+text = "Chưa có bài đăng. Khu phố đang yên ắng."
+bbcode_enabled = false
 
 [node name="PlotGrid" type="GridContainer" parent="." unique_id=549295168]
 offset_left = 330.0
@@ -87,3 +151,7 @@ color = Color(0.7683069, 0.7683071, 0.76830703, 1)
 [connection signal="pressed" from="UI/UpgradeCafeButton" to="." method="_on_upgrade_cafe_button_pressed"]
 
 [connection signal="pressed" from="UI/BuildMinimartButton" to="." method="_on_build_minimart_button_pressed"]
+[connection signal="pressed" from="UI/BuildPhotoboothButton" to="." method="_on_build_photobooth_button_pressed"]
+
+[connection signal="pressed" from="UI/ThreadZButton" to="." method="_on_threadz_button_pressed"]
+[connection signal="pressed" from="UI/ThreadZPanel/Margin/Content/Header/CloseButton" to="." method="_on_threadz_close_pressed"]

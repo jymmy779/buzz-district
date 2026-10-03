@@ -40,6 +40,13 @@ The joke should often be the situation itself.
 
 ## Matcha Everything
 
+**CURRENT prototype subset: Matcha Wave.** A 30-second debug-triggered trend
+multiplies Matcha selection for every customer profile and shows a small trend
+label. Profile-specific mixes remain distinct, but all shift strongly toward
+Matcha. Longer preparation naturally adds service workload. The minimal ThreadZ
+feed now adds one start reaction.
+Arrival demand and creator visits remain unchanged; broader effects below remain ideas.
+
 A sudden matcha wave hits ThreadZ.
 
 Possible effects:
@@ -79,7 +86,9 @@ Satire target: the way every ordinary activity is rebranded as healing.
 
 ## Photobooth Wave
 
-A photobooth becomes the district's mandatory check-in.
+Photobooth is now a **CURRENT business prototype** with Quick Shot and Premium
+Strip offerings. A future Photobooth Wave could make it the district's mandatory
+check-in; that trend is not implemented.
 
 Effects:
 
@@ -137,6 +146,27 @@ Office workers flood:
 - coworking.
 
 Coffee demand high, patience low.
+
+## Lunch Rush
+
+**CURRENT prototype trend.** For 30 seconds, profile spawn weights shift toward
+Office Workers. Their existing Cafe/Minimart preferences, trip behavior, patience,
+and Coffee preference create the gameplay effect indirectly; the trend does not
+force a destination or order.
+
+ThreadZ start examples:
+
+> “Trưa nay dân văn phòng kéo xuống đông dữ.”
+
+> “Mới tới giờ nghỉ trưa mà quán xá kín người rồi.”
+
+> “Ai cho cả văn phòng xuống cùng một lúc vậy trời?”
+
+End examples:
+
+> “Hết giờ nghỉ trưa cái khu này yên hẳn.”
+
+> “Dân văn phòng quay lại làm hết rồi.”
 
 ## Remote Work Migration
 
@@ -522,9 +552,9 @@ If an event has no gameplay consequence or decision, it is probably only flavor 
 
 Possible recurring fictional archetypes:
 
-- Office Worker
-- Student
-- Shipper
+- Office Worker — **CURRENT prototype profile:** Cafe/coffee leaning, medium patience.
+- Student — **CURRENT prototype profile:** Matcha leaning, highest patience.
+- Shipper — **CURRENT prototype profile:** Minimart leaning, shortest trips and lowest patience.
 - Creator
 - KOC Reviewer
 - Green Taxi Driver
@@ -584,3 +614,20 @@ Better:
 > Matcha trend increases cafe demand, changes order distribution, slows average throughput, increases queues, and creates an upgrade decision.
 
 That interaction is the identity of Buzz District.
+
+
+## Current ThreadZ prototype copy
+
+On Matcha Wave start, choose one:
+- “Ủa sao hôm nay quán nào cũng thấy người gọi matcha vậy?”
+- “Đi mua cà phê mà cả hàng trước mặt đều gọi matcha.”
+- “Tự nhiên hôm nay ai cũng cầm một ly xanh xanh.”
+
+Once per Cafe congestion episode:
+- “Hidden gem gì mà xếp hàng tới ngoài cửa vậy?”
+
+Empty feed:
+- “Chưa có bài đăng. Khu phố đang yên ắng.”
+
+These are fictional district reactions. No real people, brands, profiles or social
+engagement mechanics are represented.
